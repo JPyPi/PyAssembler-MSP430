@@ -4,3 +4,8 @@ def LE(word):
 
 def Bytes(word):
     return ((word>>8)&0xff,word&0xff)
+
+def HexPrint(iterable_value):
+    for v in iterable_value:
+        print "%x"%v,
+    print
