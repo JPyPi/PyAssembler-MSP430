@@ -1,10 +1,12 @@
 import re
 import prettyhex
 from binutils import * # This imports LE and bytes
+
+# Regex for stripping comments out
 comment_patt=re.compile(";.*")
 
 sample="""
-;subc.b  @r4+,   r2  
+;subc.b  @r4+,   r2
 ;mov #llo(-32204), r15
 main:
 mov r1, r4
@@ -50,6 +52,7 @@ for i,variable in enumerate(mem_locs):
         mem_locs[i][1]=int(variable[1])
 
 mem_locs=dict(mem_locs)
+
 
 def translateEmulated(program):
     program = program.replace("ret","mov @r1+,r0")
@@ -106,19 +109,13 @@ class Instruction:
         self.byte_op=byte_op
 
 
-def HexPrint(iterable_value):
-    for v in iterable_value:
-        print "%x"%v,
-    print
-
-
 def ParseLine(line):
     # Initialize an instruction object
-    ins = Instruction() 
+    ins = Instruction()
 
     line=line.strip("\n\t ").split(":",1)
     if len(line)==2:
-       ins.label=line.pop(0) 
+       ins.label=line.pop(0)
     line=line[-1].split(" ",1)
     opcode=line[0].split(".")
     ins.opcode=opcode[0]
@@ -131,7 +128,7 @@ def ParseLine(line):
 def CompileOp(instruction,labels,current_bin_size):
     is_single=is_jump=False
     data=[0]
-    
+
     if instruction.opcode=="nop":
         return Bytes(LE(0x4303))
 
@@ -144,21 +141,23 @@ def CompileOp(instruction,labels,current_bin_size):
         data[0] <<= 8
         is_jump=True
         # useful: 0x3ff # 10 pc offset jump mask
-    else: 
+    else:
         data[0] <<= 12
 
     # The byte vs word bit is always in position 6. (thankfully! whew :) (and N/A to jumps)
-    data[0] |= instruction.byte_op<<6
+    data[0] |= instruction.byte_op << 6
 
     for i,arg in enumerate(instruction.operands):
         if arg.startswith("r"):
             # No need to set addressing modes because "register" is default
             if i==0:
-                data[0]|=int(arg[1:])<<8
+                data[0]|=int(arg[1:]) << 8
             if i==1:
                 data[0]|=int(arg[1:])
         elif arg.startswith("#") and i==0: # This is only valid for source operand
-            value=int(arg.lstrip("#"))&0xffff
+            # Handle decimal literals (including constant generation)
+
+            value=int(arg.lstrip("#")) & 0xffff
             if value in (4,8):
                                              # 4,8 are in r2 with 1 and 11
                 data[0] |= 2<<8              # register 2 as source
@@ -195,12 +194,12 @@ def CompileOp(instruction,labels,current_bin_size):
         else:
             if is_jump:
                 if instruction.opcode=="jmp":
-                    data[0] |= (((labels[arg]-current_bin_size)/2)&0x3ff)-1
+                    data[0] |= (((labels[arg]-current_bin_size)/2)&0x3ff) - 1
                 else:
-                    data[0] |= ((labels[arg]-current_bin_size)&0x3ff)+1 
+                    data[0] |= ((labels[arg]-current_bin_size)&0x3ff) + 1
                     # 10 pc offset jump mask (need to +1 because 2's
                     # complement doesn't working right
-        
+
     # Convert all bytes to little endian style
     data=map(LE,data)
     HexPrint(data)
@@ -219,14 +218,14 @@ def Compile(asm_data):
         if line.strip():
             result=ParseLine(line)
             print result.opcode,result.byte_op,result.operands
-            if not result: continue 
+            if not result: continue
             if result.label:
                 labels[result.label]=len(output)
             # Only parse if there's an instruction and it's not just a label
             if result.opcode:
                 output.extend(CompileOp(result,labels,len(output)))
                 prettyhex.prnt(output)
-            
+
 
 if __name__=="__main__":
     print "running..."
